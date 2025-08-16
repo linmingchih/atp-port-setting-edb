@@ -70,21 +70,18 @@ def get_pin_net_name(pin) -> str:
     net = getattr(pin, "net", None)
     return getattr(net, "name", None)
 
-def zip_aedb_folder(src_aedb_folder: str, out_zip_path: str, folder_name_in_zip: str):
+def zip_aedb_folder(src_aedb_folder: str, out_zip_path: str):
     """
-    將 src_aedb_folder 壓成 out_zip_path，
-    並在 zip 根目錄放入指定的 folder_name_in_zip（不多包一層）。
+    將 src_aedb_folder 的內容壓成 out_zip_path，且 zip 內不含根目錄。
     """
     if os.path.exists(out_zip_path):
         os.remove(out_zip_path)
-    # 把工作資料夾的內容寫進 zip，arcname 以 folder_name_in_zip 為根
     with zipfile.ZipFile(out_zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         base = os.path.abspath(src_aedb_folder)
         for root, _, files in os.walk(base):
             for f in files:
                 abs_path = os.path.join(root, f)
-                rel_inside = os.path.relpath(abs_path, base)  # 相對於 .aedb 目錄本身
-                arcname = os.path.join(folder_name_in_zip, rel_inside)
+                arcname = os.path.relpath(abs_path, base)
                 zf.write(abs_path, arcname)
 
 # -------------------- Routes --------------------
@@ -265,10 +262,10 @@ def download_aedb():
 
             edb.save_edb()
 
-        # ===== 只壓 updated .aedb 到 zip 根目錄（檔名沿用原始 aedb 目錄名）=====
-        out_zip = os.path.join(temp_dir, f"updated_{orig_aedb_name}.zip")
-        app.logger.debug("Zipping %s into %s (root folder in zip = %s)", work_aedb_path, out_zip, orig_aedb_name)
-        zip_aedb_folder(work_aedb_path, out_zip, folder_name_in_zip=orig_aedb_name)
+        # ===== 將更新後的 .aedb 內容直接壓入 zip =====
+        out_zip = os.path.join(temp_dir, f"{orig_aedb_name}.zip")
+        app.logger.debug("Zipping contents of %s into %s", work_aedb_path, out_zip)
+        zip_aedb_folder(work_aedb_path, out_zip)
 
         app.logger.debug("Sending file: %s", out_zip)
         zip_dir = os.path.dirname(out_zip)
