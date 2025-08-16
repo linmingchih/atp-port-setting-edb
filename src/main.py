@@ -8,6 +8,7 @@ import shutil
 import logging
 import traceback
 import re
+import uuid
 from collections import defaultdict
 from werkzeug.utils import secure_filename
 
@@ -192,10 +193,9 @@ def download_aedb():
         app.logger.error("Invalid aedb path: %s", src_aedb_path)
         return jsonify({'error': '.aedb path not found or is invalid'}), 400
 
-    # 為避免「同一路徑二次開啟」，作業於副本
-    work_aedb_path = os.path.join(temp_dir, "work_copy.aedb")
-    if os.path.exists(work_aedb_path):
-        shutil.rmtree(work_aedb_path, ignore_errors=True)
+    # 為避免「同一路徑二次開啟」，每次都建一個唯一的 aedb 工作副本
+    unique_id = uuid.uuid4().hex
+    work_aedb_path = os.path.join(temp_dir, f"work_copy_{unique_id}.aedb")
     app.logger.debug("Copying EDB from %s to %s", src_aedb_path, work_aedb_path)
     shutil.copytree(src_aedb_path, work_aedb_path)
 
@@ -269,16 +269,6 @@ def download_aedb():
         out_zip = os.path.join(temp_dir, f"updated_{orig_aedb_name}.zip")
         app.logger.debug("Zipping %s into %s (root folder in zip = %s)", work_aedb_path, out_zip, orig_aedb_name)
         zip_aedb_folder(work_aedb_path, out_zip, folder_name_in_zip=orig_aedb_name)
-
-        # 成功回傳後才清理暫存
-        @after_this_request
-        def cleanup(resp):
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                app.logger.debug("Cleaned temp_dir: %s", temp_dir)
-            except Exception:
-                pass
-            return resp
 
         app.logger.debug("Sending file: %s", out_zip)
         zip_dir = os.path.dirname(out_zip)
