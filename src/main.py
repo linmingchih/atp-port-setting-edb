@@ -1,5 +1,5 @@
 # main.py
-from flask import Flask, render_template, request, send_file, jsonify, after_this_request
+from flask import Flask, render_template, request, send_file, jsonify, after_this_request, send_from_directory
 import os
 import tempfile
 import zipfile
@@ -16,7 +16,9 @@ from pyedb import Edb
 
 # -------------------- App & Config --------------------
 app = Flask(__name__, template_folder='templates')
-app.config['UPLOAD_FOLDER'] = 'output'
+# Use absolute path for UPLOAD_FOLDER to avoid ambiguity between CWD and app root
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'output')
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -148,7 +150,7 @@ def upload_aedb():
         with open(os.path.join(temp_dir, 'session.json'), 'w', encoding='utf-8') as f:
             json.dump(session_data, f, ensure_ascii=False)
 
-        return jsonify({'info': info, 'temp_dir': temp_dir})
+        return jsonify({'info': info, 'temp_dir': os.path.basename(temp_dir)})
 
     except Exception as e:
         tb = traceback.format_exc()
@@ -167,11 +169,13 @@ def download_aedb():
 
     app.logger.debug("DOWNLOAD payload=%s", data)
     ports_config = (data or {}).get('ports')
-    temp_dir = (data or {}).get('temp_dir')
+    temp_dir_name = (data or {}).get('temp_dir')
 
-    if not ports_config or not temp_dir:
-        app.logger.error("Missing ports or temp_dir. ports=%s, temp_dir=%s", ports_config, temp_dir)
+    if not ports_config or not temp_dir_name:
+        app.logger.error("Missing ports or temp_dir. ports=%s, temp_dir=%s", ports_config, temp_dir_name)
         return jsonify({'error': 'Missing ports configuration or temporary directory'}), 400
+    
+    temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], temp_dir_name)
 
     session_file = os.path.join(temp_dir, 'session.json')
     if not os.path.exists(session_file):
@@ -277,7 +281,9 @@ def download_aedb():
             return resp
 
         app.logger.debug("Sending file: %s", out_zip)
-        return send_file(out_zip, as_attachment=True, download_name=os.path.basename(out_zip))
+        zip_dir = os.path.dirname(out_zip)
+        zip_filename = os.path.basename(out_zip)
+        return send_from_directory(zip_dir, zip_filename, as_attachment=True, download_name=zip_filename)
 
     except Exception as e:
         tb = traceback.format_exc()
