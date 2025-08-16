@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Port 設定介面</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SortableJS Library for Drag and Drop -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        select[multiple] {
+            height: 150px;
+        }
+        /* Style for disabled options in select lists */
+        select option:disabled {
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+            color: #9ca3af;       /* Tailwind gray-400 */
+        }
+        /* Style for power nets in options and the select element itself */
+        .power-net, select.power-net {
+            color: #dc2626; /* Tailwind red-600 */
+            font-weight: 500;
+        }
+        /* Style for disabled power nets */
+        select option.power-net:disabled {
+            color: #f87171; /* Tailwind red-400 */
+            opacity: 0.8;
+        }
+        #configWrapper.hidden {
+            display: none;
+        }
+        .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        /* Style for dragged item */
+        .sortable-ghost {
+            background-color: #cce5ff;
+            opacity: 0.7;
+        }
+        .sortable-drag {
+            opacity: 1 !important;
+        }
+        .drag-handle {
+            cursor: move; /* or 'grab' */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-5xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-4 text-gray-900">Port 設定介面</h1>
+        
+        <!-- File Upload Section -->
+        <div class="mb-6 border-b pb-6">
+             <label for="aedbFileInput" class="block text-lg font-semibold text-gray-700 mb-2">1. 上傳 .aedb.zip 檔案</label>
+             <input type="file" id="aedbFileInput" accept=".zip" class="block w-full text-sm text-gray-500
+               file:mr-4 file:py-2 file:px-4
+               file:rounded-full file:border-0
+               file:text-sm file:font-semibold
+               file:bg-blue-50 file:text-blue-700
+               hover:file:bg-blue-100
+             "/>
+             <p id="fileStatus" class="text-sm text-gray-500 mt-2">請選擇您的 .aedb.zip 檔案。</p>
+        </div>
+
+
+        <!-- Configuration Wrapper -->
+        <div id="configWrapper" class="hidden">
+            <!-- Mode Switcher -->
+            <div class="mb-6">
+                <fieldset class="flex flex-wrap gap-4">
+                    <legend class="text-lg font-semibold mb-2 text-gray-700">2. 模式切換：</legend>
+                    <div>
+                        <input type="radio" id="componentModeRadio" name="mode" value="component" class="peer hidden" checked>
+                        <label for="componentModeRadio" class="px-4 py-2 rounded-lg border-2 border-gray-300 cursor-pointer peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 transition-all duration-300">
+                            Component 模式
+                        </label>
+                    </div>
+                    <div>
+                        <input type="radio" id="netModeRadio" name="mode" value="net" class="peer hidden">
+                        <label for="netModeRadio" class="px-4 py-2 rounded-lg border-2 border-gray-300 cursor-pointer peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-indigo-600 transition-all duration-300">
+                            Net 模式
+                        </label>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- Component Mode Section -->
+            <div id="componentModeDiv">
+                <h2 class="text-xl font-bold mb-4 text-blue-700">Component 模式</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Step 1: Select Component -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">3. 選擇元件</h3>
+                        <div>
+                            <label for="compTypeSelect" class="block text-sm font-medium text-gray-600 mb-1">元件類型：</label>
+                            <select id="compTypeSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                        </div>
+                        <div>
+                            <label for="compSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇一個元件：</label>
+                            <select id="compSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Select Nets -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">4. 選擇 Nets</h3>
+                        <div>
+                            <label for="compNetsSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇要設 Port 的 Net (可多選)：</label>
+                            <select id="compNetsSelect" multiple class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                        </div>
+                        <div>
+                            <label for="compRefNetSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇 Reference Net：</label>
+                            <select id="compRefNetSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 text-center">
+                    <button id="addCompPortsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        加入 Ports
+                    </button>
+                </div>
+            </div>
+
+            <!-- Net Mode Section -->
+            <div id="netModeDiv" class="hidden">
+                <h2 class="text-xl font-bold mb-4 text-indigo-700">Net 模式</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Step 1: Select Net -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">3. 選擇 Net</h3>
+                        <div>
+                            <label for="netTypeSelect" class="block text-sm font-medium text-gray-600 mb-1">Net 類型：</label>
+                            <select id="netTypeSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                        </div>
+                        <div>
+                            <label for="netSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇一個 Net：</label>
+                            <select id="netSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Select Components -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">4. 選擇元件</h3>
+                        <div>
+                            <label for="netCompsSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇要設 Port 的元件 (可多選)：</label>
+                            <select id="netCompsSelect" multiple class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                        </div>
+                        <div>
+                            <label for="netRefNetSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇 Reference Net：</label>
+                            <select id="netRefNetSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 text-center">
+                    <button id="addNetPortsBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        加入 Ports
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ports Display Section -->
+            <div class="mt-8 pt-6 border-t">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                    <h2 class="text-xl font-bold text-gray-900">已設定的 Ports</h2>
+                    <div class="flex gap-2">
+                        <button id="downloadAedbBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            下載更新後的 .aedb
+                        </button>
+                        <button id="deleteAllPortsBtn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            全部刪除
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container border rounded-lg">
+                    <table class="w-full text-sm text-left text-gray-600">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 w-12">#</th>
+                                <th scope="col" class="px-4 py-3">Port Name</th>
+                                <th scope="col" class="px-4 py-3">POS</th>
+                                <th scope="col" class="px-4 py-3">NEG</th>
+                                <th scope="col" class="px-4 py-3 w-24">Z0 (Ω)</th>
+                                <th scope="col" class="px-4 py-3 w-20">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portsTableBody">
+                            <!-- Rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                 <div id="noPortsMessage" class="p-4 text-center text-gray-500 bg-gray-50 rounded-b-lg">尚未設定任何 port。</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 全域變數 ---
+            let jsonData = {};
+            let ports = []; 
+            let portIdentifierSet = new Set(); 
+            let usedPosPinsSet = new Set(); // **NEW**: For tracking used pos pins
+            let usedNegPinsSet = new Set(); // **NEW**: For tracking used neg pins
+            let powerNets = new Set();
+            let deleteConfirmation = { button: null, timeoutId: null };
+            let tempDir = null;
+
+
+            // --- DOM 元素 ---
+            const aedbFileInput = document.getElementById('aedbFileInput');
+            const fileStatus = document.getElementById('fileStatus');
+            const configWrapper = document.getElementById('configWrapper');
+            const componentModeDiv = document.getElementById('componentModeDiv');
+            const netModeDiv = document.getElementById('netModeDiv');
+            const compTypeSelect = document.getElementById('compTypeSelect');
+            const compSelect = document.getElementById('compSelect');
+            const compNetsSelect = document.getElementById('compNetsSelect');
+            const compRefNetSelect = document.getElementById('compRefNetSelect');
+            const addCompPortsBtn = document.getElementById('addCompPortsBtn');
+            const netTypeSelect = document.getElementById('netTypeSelect');
+            const netSelect = document.getElementById('netSelect');
+            const netCompsSelect = document.getElementById('netCompsSelect');
+            const netRefNetSelect = document.getElementById('netRefNetSelect');
+            const addNetPortsBtn = document.getElementById('addNetPortsBtn');
+            const portsTableBody = document.getElementById('portsTableBody');
+            const noPortsMessage = document.getElementById('noPortsMessage');
+            const downloadAedbBtn = document.getElementById('downloadAedbBtn');
+            const deleteAllPortsBtn = document.getElementById('deleteAllPortsBtn');
+
+            // --- 初始化 ---
+            function initialize() {
+                aedbFileInput.addEventListener('change', handleFileSelect);
+            }
+
+            // --- 檔案處理 ---
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fileStatus.textContent = '上傳並處理檔案中，請稍候...';
+                fileStatus.className = 'text-sm text-blue-600 mt-2';
+
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.error || '上傳失敗'); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    jsonData = data.info;
+                    tempDir = data.temp_dir;
+                    fileStatus.textContent = `已成功載入檔案： ${file.name}`;
+                    fileStatus.className = 'text-sm text-green-600 mt-2';
+                    processJsonData(jsonData);
+                })
+                .catch(error => {
+                    console.error("上傳或處理失敗:", error);
+                    fileStatus.textContent = `錯誤： ${error.message}`;
+                    fileStatus.className = 'text-sm text-red-600 mt-2';
+                    configWrapper.classList.add('hidden');
+                });
+            }
+            
+            // --- 資料處理與 UI 更新 ---
+            function processJsonData(data) {
+                ports = [];
+                portIdentifierSet.clear();
+                usedPosPinsSet.clear();
+                usedNegPinsSet.clear();
+                powerNets = new Set(data.type_net.power || []);
+                renderPorts();
+
+                populateSelect(compTypeSelect, ['全部', ...Object.keys(data.type_comp).sort()]);
+                populateSelect(netTypeSelect, ['全部', ...Object.keys(data.type_net).sort()]);
+                
+                populateSelect(netRefNetSelect, [], null); 
+
+                compTypeSelect.dispatchEvent(new Event('change'));
+                netTypeSelect.dispatchEvent(new Event('change'));
+
+                configWrapper.classList.remove('hidden');
+                initializeSortable();
+                enableMouseWheelForAllSelects();
+            }
+
+            // --- 輔助函式 ---
+            function findBestNet(netsArray) {
+                let maxCount = -1;
+                let bestNet = '';
+                if (!netsArray || netsArray.length === 0) return '';
+
+                netsArray.forEach(net => {
+                    if (jsonData.net_pins[net]) {
+                        const componentSet = new Set(jsonData.net_pins[net].map(pinInfo => pinInfo[0]));
+                        if (componentSet.size > maxCount) {
+                            maxCount = componentSet.size;
+                            bestNet = net;
+                        }
+                    }
+                });
+                return bestNet || (netsArray.length > 0 ? netsArray[0] : '');
+            }
+
+            function populateSelect(selectElement, options, defaultValue = null) {
+                const isSingleSelect = !selectElement.multiple;
+                selectElement.innerHTML = '';
+
+                if (isSingleSelect && defaultValue === null) {
+                    const placeholder = document.createElement('option');
+                    placeholder.textContent = '請選擇...';
+                    placeholder.value = '';
+                    placeholder.disabled = true;
+                    placeholder.selected = true;
+                    selectElement.appendChild(placeholder);
+                }
+
+                options.forEach(optionText => {
+                    const opt = document.createElement('option');
+                    opt.value = optionText;
+                    opt.textContent = optionText;
+                    if (powerNets.has(optionText)) {
+                        opt.classList.add('power-net');
+                    }
+                    selectElement.appendChild(opt);
+                });
+                if (defaultValue) {
+                    selectElement.value = defaultValue;
+                }
+                updateRefNetStyle(selectElement);
+            }
+
+            function getSelectedOptions(selectElement) {
+                return Array.from(selectElement.selectedOptions).map(option => option.value);
+            }
+
+            function renderPorts() {
+                portsTableBody.innerHTML = '';
+                const hasPorts = ports.length > 0;
+                noPortsMessage.style.display = hasPorts ? 'none' : 'block';
+                deleteAllPortsBtn.disabled = !hasPorts;
+                downloadAedbBtn.disabled = !hasPorts;
+
+                ports.forEach((port, index) => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'bg-white border-b hover:bg-gray-50 drag-handle';
+                    tr.dataset.id = port.port_name; 
+                    
+                    tr.innerHTML = `
+                        <td class="px-4 py-2 text-center text-gray-500">${index + 1}</td>
+                        <td class="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">${port.port_name}</td>
+                        <td class="px-4 py-2">${port.pos}</td>
+                        <td class="px-4 py-2">${port.neg}</td>
+                        <td class="px-4 py-2">
+                            <input type="number" value="${port.z0}" data-index="${index}" class="z0-input w-full p-1 border rounded-md text-center">
+                        </td>
+                        <td class="px-4 py-2">
+                            <button data-index="${index}" class="delete-btn text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded-md">刪除</button>
+                        </td>
+                    `;
+                    portsTableBody.appendChild(tr);
+                });
+            }
+
+            function initializeSortable() {
+                if (portsTableBody.sortableInstance) {
+                    portsTableBody.sortableInstance.destroy();
+                }
+                portsTableBody.sortableInstance = Sortable.create(portsTableBody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    handle: '.drag-handle',
+                    onEnd: function (evt) {
+                        const [movedItem] = ports.splice(evt.oldIndex, 1);
+                        ports.splice(evt.newIndex, 0, movedItem);
+                        renderPorts();
+                    },
+                });
+            }
+            
+            function enableMouseWheelForSelect(selectElement) {
+                selectElement.addEventListener('wheel', function(e) {
+                    if (this.multiple) return;
+                    e.preventDefault();
+                    let newIndex = this.selectedIndex + (e.deltaY > 0 ? 1 : -1);
+                    if (newIndex < 0) newIndex = 0;
+                    if (newIndex >= this.options.length) newIndex = this.options.length - 1;
+                    this.selectedIndex = newIndex;
+                    this.dispatchEvent(new Event('change'));
+                });
+            }
+            
+            function enableMouseWheelForAllSelects() {
+                const allSelects = document.querySelectorAll('select');
+                allSelects.forEach(enableMouseWheelForSelect);
+            }
+            
+            function updateRefNetStyle(selectElement) {
+                if(selectElement.multiple) return;
+                const selectedNet = selectElement.value;
+                if (powerNets.has(selectedNet)) {
+                    selectElement.classList.add('power-net');
+                } else {
+                    selectElement.classList.remove('power-net');
+                }
+            }
+
+            function resetDeleteConfirmation() {
+                if (deleteConfirmation.button) {
+                    if (deleteConfirmation.button.classList.contains('delete-btn')) {
+                        deleteConfirmation.button.textContent = '刪除';
+                        deleteConfirmation.button.classList.remove('bg-yellow-400', 'text-black');
+                        deleteConfirmation.button.classList.add('text-red-500', 'hover:text-red-700');
+                    } else if (deleteConfirmation.button.id === 'deleteAllPortsBtn') {
+                        deleteConfirmation.button.textContent = '全部刪除';
+                        deleteConfirmation.button.classList.remove('bg-yellow-400', 'text-black');
+                        deleteConfirmation.button.classList.add('bg-red-600', 'hover:bg-red-700');
+                    }
+                }
+                if (deleteConfirmation.timeoutId) {
+                    clearTimeout(deleteConfirmation.timeoutId);
+                }
+                deleteConfirmation = { button: null, timeoutId: null };
+            }
+
+            // --- 事件監聽 ---
+            portsTableBody.addEventListener('change', (e) => {
+                if (e.target.classList.contains('z0-input')) {
+                    const index = e.target.dataset.index;
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value)) {
+                        ports[index].z0 = value;
+                    }
+                }
+            });
+
+            portsTableBody.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-btn')) {
+                    const clickedButton = e.target;
+                    
+                    if (deleteConfirmation.button === clickedButton) {
+                        const index = parseInt(clickedButton.dataset.index, 10);
+                        const portToRemove = ports[index];
+                        const identifier = `${portToRemove.pos}-${portToRemove.neg}`;
+                        
+                        portIdentifierSet.delete(identifier);
+                        // Rebuild used pins sets after deletion
+                        usedPosPinsSet.clear();
+                        usedNegPinsSet.clear();
+                        ports.splice(index, 1); // Remove the port first
+                        ports.forEach(p => { // Then rebuild from remaining ports
+                            usedPosPinsSet.add(p.pos);
+                            usedNegPinsSet.add(p.neg);
+                        });
+
+                        resetDeleteConfirmation();
+                        renderPorts();
+                    } else {
+                        resetDeleteConfirmation(); 
+                        
+                        deleteConfirmation.button = clickedButton;
+                        clickedButton.textContent = '確認刪除?';
+                        clickedButton.classList.remove('text-red-500', 'hover:text-red-700');
+                        clickedButton.classList.add('bg-yellow-400', 'text-black');
+                        
+                        deleteConfirmation.timeoutId = setTimeout(() => {
+                            resetDeleteConfirmation();
+                        }, 3000);
+                    }
+                }
+            });
+
+            document.querySelectorAll('input[name="mode"]').forEach(radio => {
+                radio.addEventListener('change', (event) => {
+                    componentModeDiv.classList.toggle('hidden', event.target.value !== 'component');
+                    netModeDiv.classList.toggle('hidden', event.target.value !== 'net');
+                });
+            });
+
+            // --- Component 模式邏輯 ---
+            function updateCompNetsSelectState() {
+                const refNetValue = compRefNetSelect.value;
+                const options = compNetsSelect.options;
+
+                for (let i = 0; i < options.length; i++) {
+                    const option = options[i];
+                    if (option.value === refNetValue) {
+                        option.disabled = true;
+                        option.selected = false;
+                    } else {
+                        option.disabled = false;
+                    }
+                }
+            }
+
+            compTypeSelect.addEventListener('change', () => {
+                const type = compTypeSelect.value;
+                let components = (type === '全部') ? Object.values(jsonData.type_comp).flat() : (jsonData.type_comp[type] || []);
+                populateSelect(compSelect, components.sort());
+                compSelect.dispatchEvent(new Event('change'));
+            });
+
+            compSelect.addEventListener('change', () => {
+                const selectedComp = compSelect.value;
+                if (!selectedComp) {
+                    compNetsSelect.innerHTML = '';
+                    compRefNetSelect.innerHTML = '';
+                    return;
+                }
+                const connectedNets = new Set();
+                Object.entries(jsonData.pin_net).forEach(([pinKey, netName]) => {
+                    if (pinKey.startsWith(selectedComp + ':')) {
+                        connectedNets.add(netName);
+                    }
+                });
+                
+                const netsArray = Array.from(connectedNets).sort();
+                populateSelect(compNetsSelect, netsArray);
+
+                const bestRefNet = findBestNet(netsArray);
+                populateSelect(compRefNetSelect, netsArray, bestRefNet);
+                updateCompNetsSelectState();
+            });
+
+            compRefNetSelect.addEventListener('change', () => {
+                updateCompNetsSelectState();
+                updateRefNetStyle(compRefNetSelect);
+            });
+
+            addCompPortsBtn.addEventListener('click', () => {
+                const component = compSelect.value;
+                const refNet = compRefNetSelect.value;
+                const selectedNets = getSelectedOptions(compNetsSelect);
+                let addedCount = 0;
+
+                if (!component || !refNet || selectedNets.length === 0) {
+                    alert('請完成所有選擇！');
+                    return;
+                }
+
+                selectedNets.forEach(net => {
+                    if (net === refNet) return;
+                    
+                    const pos = `(${component}, ${net})`;
+                    const neg = `(${component}, ${refNet})`;
+                    const identifier = `${pos}-${neg}`;
+
+                    // **NEW VALIDATION LOGIC**
+                    if (usedPosPinsSet.has(pos) || usedNegPinsSet.has(pos)) {
+                        alert(`無法加入 Port，因為 POS Pin ${pos} 已被使用。`);
+                        return;
+                    }
+                    if (usedPosPinsSet.has(neg)) {
+                         alert(`無法加入 Port，因為 NEG Pin ${neg} 已被用作 POS Pin。`);
+                        return;
+                    }
+
+                    if (!portIdentifierSet.has(identifier)) {
+                        portIdentifierSet.add(identifier);
+                        usedPosPinsSet.add(pos);
+                        usedNegPinsSet.add(neg);
+                        ports.push({
+                            port_name: `port_${component}_${net}`,
+                            pos: pos,
+                            neg: neg,
+                            z0: 50
+                        });
+                        addedCount++;
+                    }
+                });
+                if (addedCount > 0) renderPorts();
+            });
+
+            // --- Net 模式邏輯 ---
+            function updateNetModeButtonState() {
+                const netSelected = netSelect.value;
+                const refNetSelected = netRefNetSelect.value;
+                const compsSelected = getSelectedOptions(netCompsSelect).length > 0;
+                addNetPortsBtn.disabled = !(netSelected && refNetSelected && compsSelected);
+            }
+
+            function getNetsForComponent(componentName) {
+                const nets = new Set();
+                if (!componentName) return nets;
+                Object.entries(jsonData.pin_net).forEach(([pinKey, netName]) => {
+                    if (pinKey.startsWith(componentName + ':')) {
+                        nets.add(netName);
+                    }
+                });
+                return nets;
+            }
+
+            function updateNetRefNetOptions() {
+                const selectedComps = getSelectedOptions(netCompsSelect);
+                const mainNet = netSelect.value;
+
+                if (selectedComps.length === 0) {
+                    populateSelect(netRefNetSelect, []);
+                    netRefNetSelect.disabled = true;
+                    updateNetModeButtonState();
+                    return;
+                }
+
+                let commonNets = getNetsForComponent(selectedComps[0]);
+                for (let i = 1; i < selectedComps.length; i++) {
+                    const nextCompNets = getNetsForComponent(selectedComps[i]);
+                    commonNets = new Set([...commonNets].filter(net => nextCompNets.has(net)));
+                }
+
+                const finalOptions = Array.from(commonNets).filter(net => net !== mainNet).sort();
+
+                if (finalOptions.length === 0) {
+                    netRefNetSelect.innerHTML = '<option value="" disabled selected>不存在共用 Net</option>';
+                    netRefNetSelect.disabled = true;
+                } else {
+                    const bestRefNet = findBestNet(finalOptions);
+                    populateSelect(netRefNetSelect, finalOptions, bestRefNet);
+                    netRefNetSelect.disabled = false;
+                }
+                updateNetModeButtonState();
+            }
+
+            netTypeSelect.addEventListener('change', () => {
+                const type = netTypeSelect.value;
+                let nets = (type === '全部') ? Object.values(jsonData.type_net).flat() : (jsonData.type_net[type] || []);
+                populateSelect(netSelect, nets.sort());
+                netSelect.dispatchEvent(new Event('change'));
+            });
+
+            netSelect.addEventListener('change', () => {
+                updateRefNetStyle(netSelect);
+                const selectedNet = netSelect.value;
+                
+                if (!selectedNet || !jsonData.net_pins[selectedNet]) {
+                    netCompsSelect.innerHTML = '';
+                } else {
+                    const connectedComps = new Set(jsonData.net_pins[selectedNet].map(pinInfo => pinInfo[0]));
+                    populateSelect(netCompsSelect, Array.from(connectedComps).sort());
+                }
+                updateNetRefNetOptions();
+            });
+            
+            netCompsSelect.addEventListener('change', updateNetRefNetOptions);
+            netRefNetSelect.addEventListener('change', () => {
+                updateRefNetStyle(netRefNetSelect);
+                updateNetModeButtonState();
+            });
+
+
+            addNetPortsBtn.addEventListener('click', () => {
+                const net = netSelect.value;
+                const refNet = netRefNetSelect.value;
+                const selectedComps = getSelectedOptions(netCompsSelect);
+                let addedCount = 0;
+
+                if (!net || !refNet || selectedComps.length === 0) {
+                    alert('請完成所有選擇！');
+                    return;
+                }
+                if (net === refNet) {
+                    alert('Port Net 和 Reference Net 不能相同！');
+                    return;
+                }
+
+                selectedComps.forEach(component => {
+                    const pos = `(${component}, ${net})`;
+                    const neg = `(${component}, ${refNet})`;
+                    const identifier = `${pos}-${neg}`;
+                    
+                    // **NEW VALIDATION LOGIC**
+                    if (usedPosPinsSet.has(pos) || usedNegPinsSet.has(pos)) {
+                        alert(`無法加入 Port，因為 POS Pin ${pos} 已被使用。`);
+                        return; // Skip this component
+                    }
+                    if (usedPosPinsSet.has(neg)) {
+                         alert(`無法加入 Port，因為 NEG Pin ${neg} 已被用作 POS Pin。`);
+                        return; // Skip this component
+                    }
+
+                    if (!portIdentifierSet.has(identifier)) {
+                        portIdentifierSet.add(identifier);
+                        usedPosPinsSet.add(pos);
+                        usedNegPinsSet.add(neg);
+                         ports.push({
+                            port_name: `port_${component}_${net}`,
+                            pos: pos,
+                            neg: neg,
+                            z0: 50
+                        });
+                        addedCount++;
+                    }
+                });
+                if (addedCount > 0) renderPorts();
+            });
+            
+            // --- 按鈕功能 ---
+            deleteAllPortsBtn.addEventListener('click', () => {
+                if (ports.length === 0) return;
+
+                if (deleteConfirmation.button === deleteAllPortsBtn) {
+                    ports = [];
+                    portIdentifierSet.clear();
+                    usedPosPinsSet.clear();
+                    usedNegPinsSet.clear();
+                    resetDeleteConfirmation();
+                    renderPorts();
+                } else {
+                    resetDeleteConfirmation();
+
+                    deleteConfirmation.button = deleteAllPortsBtn;
+                    deleteAllPortsBtn.textContent = '確認刪除?';
+                    deleteAllPortsBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    deleteAllPortsBtn.classList.add('bg-yellow-400', 'text-black');
+                    
+                    deleteConfirmation.timeoutId = setTimeout(() => {
+                        resetDeleteConfirmation();
+                    }, 3000);
+                }
+            });
+
+            downloadAedbBtn.addEventListener('click', () => {
+                if (ports.length === 0) {
+                    alert('沒有可輸出的 Port。');
+                    return;
+                }
+
+                fileStatus.textContent = '正在更新 .aedb 檔案並準備下載...';
+                fileStatus.className = 'text-sm text-blue-600 mt-2';
+
+                fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ports: ports,
+                        temp_dir: tempDir
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.error || '下載失敗'); });
+                    }
+                    const header = response.headers.get('Content-Disposition');
+                    const parts = header.split(';');
+                    let filename = 'updated.zip';
+                    for (let i = 0; i < parts.length; i++) {
+                        if (parts[i].trim().startsWith('filename=')) {
+                            filename = parts[i].substring(parts[i].indexOf('=') + 1).trim();
+                            filename = filename.replace(/"/g, '');
+                            break;
+                        }
+                    }
+                    if (filename.startsWith("updated_")) {
+                        filename = filename.substring(8);
+                    }
+                    return response.blob().then(blob => ({ blob, filename }));
+                })
+                .then(({ blob, filename }) => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    fileStatus.textContent = '下載完成！';
+                    fileStatus.className = 'text-sm text-green-600 mt-2';
+                })
+                .catch(error => {
+                    console.error('下載錯誤:', error);
+                    fileStatus.textContent = `錯誤： ${error.message}`;
+                    fileStatus.className = 'text-sm text-red-600 mt-2';
+                });
+            });
+
+            // --- 啟動應用 ---
+            initialize();
+        });
+    </script>
+</body>
+</html>
