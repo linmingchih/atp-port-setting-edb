@@ -18,7 +18,7 @@ from pyedb import Edb
 # -------------------- App & Config --------------------
 app = Flask(__name__, template_folder='templates')
 # Use absolute path for UPLOAD_FOLDER to avoid ambiguity between CWD and app root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'output')
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
