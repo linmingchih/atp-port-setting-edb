@@ -63,6 +63,14 @@
         .drag-handle {
             cursor: move; /* or 'grab' */
         }
+        /* New style for the net list container */
+        #netListContainer {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #d1d5db; /* Tailwind gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 0.5rem; /* p-2 */
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 p-4 sm:p-6 md:p-8">
@@ -148,14 +156,17 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Step 1: Select Net -->
                     <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
-                        <h3 class="font-semibold text-gray-800">3. 選擇 Net</h3>
+                        <h3 class="font-semibold text-gray-800">3. 選擇 Nets</h3>
                         <div>
                             <label for="netTypeSelect" class="block text-sm font-medium text-gray-600 mb-1">Net 類型：</label>
                             <select id="netTypeSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
                         </div>
                         <div>
-                            <label for="netSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇一個 Net：</label>
-                            <select id="netSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                            <label for="netFilterInput" class="block text-sm font-medium text-gray-600 mb-1">Net 名稱過濾 (Regex)：</label>
+                            <input type="text" id="netFilterInput" placeholder="e.g., DDR_.*_DQS" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mb-2">
+                        </div>
+                        <div id="netListContainer" class="space-y-1">
+                            <!-- Checkboxes will be inserted here -->
                         </div>
                     </div>
 
@@ -163,7 +174,7 @@
                     <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
                         <h3 class="font-semibold text-gray-800">4. 選擇元件</h3>
                         <div>
-                            <label for="netCompsSelect" class="block text-sm font-medium text-gray-600 mb-1">選擇要設 Port 的元件 (可多選)：</label>
+                            <label for="netCompsSelect" class="block text-sm font-medium text-gray-600 mb-1">共同元件 (可多選)：</label>
                             <select id="netCompsSelect" multiple class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
                         </div>
                         <div>
@@ -220,8 +231,8 @@
             let jsonData = {};
             let ports = []; 
             let portIdentifierSet = new Set(); 
-            let usedPosPinsSet = new Set(); // **NEW**: For tracking used pos pins
-            let usedNegPinsSet = new Set(); // **NEW**: For tracking used neg pins
+            let usedPosPinsSet = new Set();
+            let usedNegPinsSet = new Set();
             let powerNets = new Set();
             let deleteConfirmation = { button: null, timeoutId: null };
             let tempDir = null;
@@ -239,7 +250,8 @@
             const compRefNetSelect = document.getElementById('compRefNetSelect');
             const addCompPortsBtn = document.getElementById('addCompPortsBtn');
             const netTypeSelect = document.getElementById('netTypeSelect');
-            const netSelect = document.getElementById('netSelect');
+            const netFilterInput = document.getElementById('netFilterInput');
+            const netListContainer = document.getElementById('netListContainer');
             const netCompsSelect = document.getElementById('netCompsSelect');
             const netRefNetSelect = document.getElementById('netRefNetSelect');
             const addNetPortsBtn = document.getElementById('addNetPortsBtn');
@@ -471,11 +483,10 @@
                         const identifier = `${portToRemove.pos}-${portToRemove.neg}`;
                         
                         portIdentifierSet.delete(identifier);
-                        // Rebuild used pins sets after deletion
                         usedPosPinsSet.clear();
                         usedNegPinsSet.clear();
-                        ports.splice(index, 1); // Remove the port first
-                        ports.forEach(p => { // Then rebuild from remaining ports
+                        ports.splice(index, 1);
+                        ports.forEach(p => {
                             usedPosPinsSet.add(p.pos);
                             usedNegPinsSet.add(p.neg);
                         });
@@ -572,7 +583,6 @@
                     const neg = `(${component}, ${refNet})`;
                     const identifier = `${pos}-${neg}`;
 
-                    // **NEW VALIDATION LOGIC**
                     if (usedPosPinsSet.has(pos) || usedNegPinsSet.has(pos)) {
                         alert(`無法加入 Port，因為 POS Pin ${pos} 已被使用。`);
                         return;
@@ -598,12 +608,16 @@
                 if (addedCount > 0) renderPorts();
             });
 
-            // --- Net 模式邏輯 ---
+            // --- Net 模式邏輯 (NEW & UPDATED) ---
+            function getSelectedNets() {
+                return Array.from(netListContainer.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            }
+
             function updateNetModeButtonState() {
-                const netSelected = netSelect.value;
+                const netsSelected = getSelectedNets().length > 0;
                 const refNetSelected = netRefNetSelect.value;
                 const compsSelected = getSelectedOptions(netCompsSelect).length > 0;
-                addNetPortsBtn.disabled = !(netSelected && refNetSelected && compsSelected);
+                addNetPortsBtn.disabled = !(netsSelected && refNetSelected && compsSelected);
             }
 
             function getNetsForComponent(componentName) {
@@ -617,9 +631,68 @@
                 return nets;
             }
 
+            function populateNetCheckboxes() {
+                const type = netTypeSelect.value;
+                let nets = (type === '全部') ? Object.values(jsonData.type_net).flat() : (jsonData.type_net[type] || []);
+                nets.sort();
+                
+                netListContainer.innerHTML = '';
+                nets.forEach(netName => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center';
+                    const checkboxId = `net_cb_${netName.replace(/\W/g, '_')}`;
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = checkboxId;
+                    checkbox.value = netName;
+                    checkbox.className = 'h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = checkboxId;
+                    label.textContent = netName;
+                    label.className = 'ml-2 block text-sm text-gray-900';
+                    if (powerNets.has(netName)) {
+                        label.classList.add('power-net');
+                    }
+                    
+                    div.appendChild(checkbox);
+                    div.appendChild(label);
+                    netListContainer.appendChild(div);
+                });
+                netFilterInput.dispatchEvent(new Event('input'));
+            }
+
+            async function updateCommonComponents() {
+                const selectedNets = getSelectedNets();
+                if (selectedNets.length === 0) {
+                    populateSelect(netCompsSelect, []);
+                    updateNetRefNetOptions();
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/common_components', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ nets: selectedNets, temp_dir: tempDir })
+                    });
+                    if (!response.ok) {
+                        throw new Error('無法獲取共同元件');
+                    }
+                    const data = await response.json();
+                    populateSelect(netCompsSelect, data.components || []);
+                } catch (error) {
+                    console.error("獲取共同元件失敗:", error);
+                    populateSelect(netCompsSelect, []);
+                } finally {
+                    updateNetRefNetOptions();
+                }
+            }
+
             function updateNetRefNetOptions() {
                 const selectedComps = getSelectedOptions(netCompsSelect);
-                const mainNet = netSelect.value;
+                const mainNets = new Set(getSelectedNets());
 
                 if (selectedComps.length === 0) {
                     populateSelect(netRefNetSelect, []);
@@ -634,7 +707,7 @@
                     commonNets = new Set([...commonNets].filter(net => nextCompNets.has(net)));
                 }
 
-                const finalOptions = Array.from(commonNets).filter(net => net !== mainNet).sort();
+                const finalOptions = Array.from(commonNets).filter(net => !mainNets.has(net)).sort();
 
                 if (finalOptions.length === 0) {
                     netRefNetSelect.innerHTML = '<option value="" disabled selected>不存在共用 Net</option>';
@@ -647,77 +720,78 @@
                 updateNetModeButtonState();
             }
 
-            netTypeSelect.addEventListener('change', () => {
-                const type = netTypeSelect.value;
-                let nets = (type === '全部') ? Object.values(jsonData.type_net).flat() : (jsonData.type_net[type] || []);
-                populateSelect(netSelect, nets.sort());
-                netSelect.dispatchEvent(new Event('change'));
+            netTypeSelect.addEventListener('change', populateNetCheckboxes);
+            
+            netFilterInput.addEventListener('input', () => {
+                try {
+                    const regex = new RegExp(netFilterInput.value, 'i');
+                    const netDivs = netListContainer.children;
+                    for (const div of netDivs) {
+                        const label = div.querySelector('label');
+                        const isVisible = regex.test(label.textContent);
+                        div.style.display = isVisible ? 'flex' : 'none';
+                    }
+                } catch (e) {
+                    // Invalid regex, do nothing
+                }
             });
 
-            netSelect.addEventListener('change', () => {
-                updateRefNetStyle(netSelect);
-                const selectedNet = netSelect.value;
-                
-                if (!selectedNet || !jsonData.net_pins[selectedNet]) {
-                    netCompsSelect.innerHTML = '';
-                } else {
-                    const connectedComps = new Set(jsonData.net_pins[selectedNet].map(pinInfo => pinInfo[0]));
-                    populateSelect(netCompsSelect, Array.from(connectedComps).sort());
-                }
-                updateNetRefNetOptions();
-            });
-            
+            netListContainer.addEventListener('change', updateCommonComponents);
             netCompsSelect.addEventListener('change', updateNetRefNetOptions);
             netRefNetSelect.addEventListener('change', () => {
                 updateRefNetStyle(netRefNetSelect);
                 updateNetModeButtonState();
             });
 
-
             addNetPortsBtn.addEventListener('click', () => {
-                const net = netSelect.value;
+                const nets = getSelectedNets();
                 const refNet = netRefNetSelect.value;
                 const selectedComps = getSelectedOptions(netCompsSelect);
                 let addedCount = 0;
 
-                if (!net || !refNet || selectedComps.length === 0) {
+                if (nets.length === 0 || !refNet || selectedComps.length === 0) {
                     alert('請完成所有選擇！');
                     return;
                 }
-                if (net === refNet) {
+                if (nets.includes(refNet)) {
                     alert('Port Net 和 Reference Net 不能相同！');
                     return;
                 }
 
-                selectedComps.forEach(component => {
-                    const pos = `(${component}, ${net})`;
-                    const neg = `(${component}, ${refNet})`;
-                    const identifier = `${pos}-${neg}`;
-                    
-                    // **NEW VALIDATION LOGIC**
-                    if (usedPosPinsSet.has(pos) || usedNegPinsSet.has(pos)) {
-                        alert(`無法加入 Port，因為 POS Pin ${pos} 已被使用。`);
-                        return; // Skip this component
-                    }
-                    if (usedPosPinsSet.has(neg)) {
-                         alert(`無法加入 Port，因為 NEG Pin ${neg} 已被用作 POS Pin。`);
-                        return; // Skip this component
-                    }
+                nets.forEach(net => {
+                    selectedComps.forEach(component => {
+                        const pos = `(${component}, ${net})`;
+                        const neg = `(${component}, ${refNet})`;
+                        const identifier = `${pos}-${neg}`;
+                        
+                        if (usedPosPinsSet.has(pos) || usedNegPinsSet.has(pos)) {
+                            console.warn(`無法加入 Port，因為 POS Pin ${pos} 已被使用。`);
+                            return;
+                        }
+                        if (usedPosPinsSet.has(neg)) {
+                            console.warn(`無法加入 Port，因為 NEG Pin ${neg} 已被用作 POS Pin。`);
+                            return;
+                        }
 
-                    if (!portIdentifierSet.has(identifier)) {
-                        portIdentifierSet.add(identifier);
-                        usedPosPinsSet.add(pos);
-                        usedNegPinsSet.add(neg);
-                         ports.push({
-                            port_name: `port_${component}_${net}`,
-                            pos: pos,
-                            neg: neg,
-                            z0: 50
-                        });
-                        addedCount++;
-                    }
+                        if (!portIdentifierSet.has(identifier)) {
+                            portIdentifierSet.add(identifier);
+                            usedPosPinsSet.add(pos);
+                            usedNegPinsSet.add(neg);
+                            ports.push({
+                                port_name: `port_${component}_${net}`,
+                                pos: pos,
+                                neg: neg,
+                                z0: 50
+                            });
+                            addedCount++;
+                        }
+                    });
                 });
-                if (addedCount > 0) renderPorts();
+                if (addedCount > 0) {
+                    renderPorts();
+                } else {
+                    alert('沒有新的 Port 可加入 (可能已存在或 Pin 已被使用)。');
+                }
             });
             
             // --- 按鈕功能 ---

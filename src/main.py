@@ -148,6 +148,10 @@ def upload_aedb():
         with open(os.path.join(temp_dir, 'session.json'), 'w', encoding='utf-8') as f:
             json.dump(session_data, f, ensure_ascii=False)
 
+        # 儲存 EDB info 供後續 API 調用
+        with open(os.path.join(temp_dir, 'info.json'), 'w', encoding='utf-8') as f:
+            json.dump(info, f, ensure_ascii=False)
+
         return jsonify({'info': info, 'temp_dir': os.path.basename(temp_dir)})
 
     except Exception as e:
@@ -277,6 +281,53 @@ def download_aedb():
         app.logger.error("DOWNLOAD failed: %s\n%s", e, tb)
         # 失敗不立刻刪 temp_dir，保留現場便於除錯
         return jsonify({'error': str(e), 'traceback': tb, 'temp_dir': temp_dir}), 500
+
+@app.route('/api/common_components', methods=['POST'])
+def get_common_components():
+    try:
+        data = request.get_json()
+        temp_dir_name = data.get('temp_dir')
+        nets = data.get('nets', [])
+
+        if not temp_dir_name or not nets:
+            return jsonify({'error': 'Missing temp_dir or nets list'}), 400
+
+        temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], temp_dir_name)
+        info_file = os.path.join(temp_dir, 'info.json')
+
+        if not os.path.exists(info_file):
+            return jsonify({'error': 'Cached info not found'}), 404
+
+        with open(info_file, 'r', encoding='utf-8') as f:
+            info = json.load(f)
+        
+        net_pins = info.get('net_pins', {})
+        
+        # 取得第一個 net 的元件作為初始集合
+        first_net = nets[0]
+        if first_net not in net_pins:
+            return jsonify({'components': []})
+        
+        common_components = set(comp for comp, pin in net_pins[first_net])
+
+        # 與後續的 nets 取交集
+        for net_name in nets[1:]:
+            if not common_components:
+                break # 優化：如果已經沒有共同元件，就不用再比了
+            if net_name in net_pins:
+                current_net_components = set(comp for comp, pin in net_pins[net_name])
+                common_components.intersection_update(current_net_components)
+            else:
+                # 如果有一個 net 不存在，那交集就是空的
+                common_components.clear()
+                break
+        
+        return jsonify({'components': sorted(list(common_components))})
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        app.logger.error("API get_common_components failed: %s\n%s", e, tb)
+        return jsonify({'error': str(e), 'traceback': tb}), 500
 
 # -------------------- Entrypoint --------------------
 if __name__ == '__main__':
