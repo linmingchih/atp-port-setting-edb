@@ -162,7 +162,10 @@
                             <select id="netTypeSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
                         </div>
                         <div>
-                            <label for="netFilterInput" class="block text-sm font-medium text-gray-600 mb-1">Net 名稱過濾 (Regex)：</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="netFilterInput" class="block text-sm font-medium text-gray-600">Net 名稱過濾 (Regex)：</label>
+                                <button id="uncheckAllNetsBtn" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Uncheck All</button>
+                            </div>
                             <input type="text" id="netFilterInput" placeholder="e.g., DDR_.*_DQS" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mb-2">
                         </div>
                         <div id="netListContainer" class="space-y-1">
@@ -251,6 +254,7 @@
             const addCompPortsBtn = document.getElementById('addCompPortsBtn');
             const netTypeSelect = document.getElementById('netTypeSelect');
             const netFilterInput = document.getElementById('netFilterInput');
+            const uncheckAllNetsBtn = document.getElementById('uncheckAllNetsBtn');
             const netListContainer = document.getElementById('netListContainer');
             const netCompsSelect = document.getElementById('netCompsSelect');
             const netRefNetSelect = document.getElementById('netRefNetSelect');
@@ -722,6 +726,17 @@
 
             netTypeSelect.addEventListener('change', populateNetCheckboxes);
             
+            uncheckAllNetsBtn.addEventListener('click', () => {
+                const checkedNets = netListContainer.querySelectorAll('input[type="checkbox"]:checked');
+                if (checkedNets.length > 0) {
+                    checkedNets.forEach(cb => {
+                        cb.checked = false;
+                    });
+                    // Trigger the change event to update the component list
+                    netListContainer.dispatchEvent(new Event('change'));
+                }
+            });
+
             netFilterInput.addEventListener('input', () => {
                 try {
                     const regex = new RegExp(netFilterInput.value, 'i');
