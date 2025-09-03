@@ -232,7 +232,7 @@ def download_aedb():
                 if not pin_names:
                     raise ValueError(f"No pins of component '{comp_name}' connect to net '{net_name}'")
 
-                group_name = f"port_{comp_name}_{net_name}"
+                group_name = f"{comp_name}_{net_name}"
                 ret = edb.siwave.create_pin_group(comp_name, pin_names, group_name)
                 if isinstance(ret, tuple) and len(ret) == 2:
                     _, pin_group = ret
@@ -251,10 +251,12 @@ def download_aedb():
                     neg_comp, neg_net = parse_tuple(p["neg"])
                     z0 = float(p.get("z0", 50))
                     
-                    # port name format: $NETNAME_$PARTNAME-$COMPNAME 
-                    comp = comps[pos_comp]
-                    part_name = comp.partname
-                    name = f"{pos_net}_{part_name}-{pos_comp}"
+                    name = p.get("port_name")  # Match the key from the JavaScript payload
+                    if not name:
+                        # port name format: $NETNAME_$PARTNAME-$COMPNAME 
+                        comp = comps[pos_comp]
+                        part_name = comp.partname
+                        name = f"{pos_net}_{part_name}-{pos_comp}"
                 except Exception as ex:
                     raise ValueError(f"ports[{i}] invalid entry: {ex}")
 
@@ -263,13 +265,18 @@ def download_aedb():
                 parsed_ports.append((name, t_sig, t_ref))
 
             # 設定 reference 關係
+            created_ports = []
             for name, t_sig, t_ref in parsed_ports:
+                t_sig.SetName(name)
+                port = None
                 if hasattr(t_sig, "SetReferenceTerminal"):
-                    t_sig.SetReferenceTerminal(t_ref)
+                    port = t_sig.SetReferenceTerminal(t_ref)
                 elif hasattr(t_sig, "set_reference_terminal"):
-                    t_sig.set_reference_terminal(t_ref)
+                    port = t_sig.set_reference_terminal(t_ref)
                 else:
                     raise RuntimeError("Port terminal object lacks SetReferenceTerminal method")
+                if port:
+                    created_ports.append(port)
 
             edb.save_edb()
 

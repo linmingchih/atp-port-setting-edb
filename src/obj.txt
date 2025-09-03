@@ -1,0 +1,14 @@
+[method]
+  as_integer_ratio()
+  bit_count()
+  bit_length()
+  conjugate()
+  from_bytes()
+  to_bytes()
+
+[property]
+  denominator: 1
+  imag: 0
+  numerator: 1
+  real: 1
+
