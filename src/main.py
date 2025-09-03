@@ -119,11 +119,13 @@ def upload_aedb():
         pin_net = {}
         net_pins = defaultdict(list)
         type_net = defaultdict(list)
+        comp_partname = {}
 
         with Edb(aedb_folder_path, edbversion=EDB_VERSION, isreadonly=True) as edb:
             for comp_name, comp in edb.components.components.items():
                 type_comp[comp.type].append(comp_name)
                 comp_pins[comp_name] = list(comp.pins.keys())
+                comp_partname[comp_name] = comp.partname
                 for pin_name, pin in comp.pins.items():
                     nname = get_pin_net_name(pin)
                     pin_net[f"{comp_name}:{pin_name}"] = nname
@@ -140,7 +142,8 @@ def upload_aedb():
             'comp_pins': comp_pins,
             'pin_net': pin_net,
             'net_pins': {k: v for k, v in net_pins.items()},
-            'type_net': dict(type_net)
+            'type_net': dict(type_net),
+            'comp_partname': comp_partname
         }
 
         # 儲存 session 資訊（後續 /download 會在副本上操作）
@@ -244,10 +247,14 @@ def download_aedb():
             parsed_ports = []
             for i, p in enumerate(ports_config, 1):
                 try:
-                    name = str(p["port_name"])
                     pos_comp, pos_net = parse_tuple(p["pos"])
                     neg_comp, neg_net = parse_tuple(p["neg"])
                     z0 = float(p.get("z0", 50))
+                    
+                    # port name format: $NETNAME_$PARTNAME-$COMPNAME 
+                    comp = comps[pos_comp]
+                    part_name = comp.partname
+                    name = f"{pos_net}_{part_name}-{pos_comp}"
                 except Exception as ex:
                     raise ValueError(f"ports[{i}] invalid entry: {ex}")
 

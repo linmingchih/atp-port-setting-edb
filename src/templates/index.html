@@ -391,7 +391,9 @@
                     
                     tr.innerHTML = `
                         <td class="px-4 py-2 text-center text-gray-500">${index + 1}</td>
-                        <td class="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">${port.port_name}</td>
+                        <td class="px-4 py-2">
+                            <input type="text" value="${port.port_name}" data-index="${index}" class="port-name-input w-full p-1 border rounded-md font-medium text-gray-900">
+                        </td>
                         <td class="px-4 py-2">${port.pos}</td>
                         <td class="px-4 py-2">${port.neg}</td>
                         <td class="px-4 py-2">
@@ -474,6 +476,15 @@
                     if (!isNaN(value)) {
                         ports[index].z0 = value;
                     }
+                }
+            });
+
+            portsTableBody.addEventListener('input', (e) => {
+                if (e.target.classList.contains('port-name-input')) {
+                    const index = e.target.dataset.index;
+                    const newName = e.target.value;
+                    ports[index].port_name = newName;
+                    e.target.closest('tr').dataset.id = newName;
                 }
             });
 
@@ -600,8 +611,10 @@
                         portIdentifierSet.add(identifier);
                         usedPosPinsSet.add(pos);
                         usedNegPinsSet.add(neg);
+                        const partName = jsonData.comp_partname[component] || 'PART';
+                        const portName = `${net}_${partName}-${component}`;
                         ports.push({
-                            port_name: `port_${component}_${net}`,
+                            port_name: portName,
                             pos: pos,
                             neg: neg,
                             z0: 50
@@ -792,8 +805,10 @@
                             portIdentifierSet.add(identifier);
                             usedPosPinsSet.add(pos);
                             usedNegPinsSet.add(neg);
+                            const partName = jsonData.comp_partname[component] || 'PART';
+                            const portName = `${net}_${partName}-${component}`;
                             ports.push({
-                                port_name: `port_${component}_${net}`,
+                                port_name: portName,
                                 pos: pos,
                                 neg: neg,
                                 z0: 50
